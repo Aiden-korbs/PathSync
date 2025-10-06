@@ -22,14 +22,13 @@ def get_location_name(latitude, longitude):
     attempts = 3
     for attempt in range(attempts):
         try:
-            # Adding a 1-second delay to respect Nominatim's usage policy
             time.sleep(1) 
             location = geolocator.reverse((latitude, longitude), exactly_one=True, language='en')
             return location.address if location else "Unknown Location"
         except (GeocoderTimedOut, GeocoderUnavailable):
             if attempt < attempts - 1:
                 print(f"  Location service timed out, retrying ({attempt + 2}/{attempts})...")
-                time.sleep(2) # Wait 2 seconds before retrying
+                time.sleep(2) 
             else:
                 return "Location service timed out or is unavailable."
         except Exception as e:
@@ -59,6 +58,7 @@ def parse_timeline_data(json_data, start_year=None, end_year=None):
         if end_year and dt.year > end_year: return False
         return True
 
+    # --- Handler for "Aiden.json" format ---
     if isinstance(json_data, dict) and 'semanticSegments' in json_data:
         for segment in json_data.get('semanticSegments', []):
             if 'timelinePath' in segment:
@@ -80,6 +80,7 @@ def parse_timeline_data(json_data, start_year=None, end_year=None):
                             events.append({'timestamp': timestamp, 'latitude': float(coords[0]), 'longitude': float(coords[1])})
                 except (KeyError, ValueError, TypeError): continue
     
+    # --- Handler for "Kate.json" format ---
     elif isinstance(json_data, list):
         for item in json_data:
             try:
@@ -90,6 +91,21 @@ def parse_timeline_data(json_data, start_year=None, end_year=None):
                     if len(coords) == 2:
                         events.append({'timestamp': timestamp, 'latitude': float(coords[0]), 'longitude': float(coords[1])})
             except (ValueError, TypeError): continue
+
+    # --- NEW: Handler for "Hana.json" format ---
+    elif isinstance(json_data, dict) and 'locations' in json_data:
+        for loc in json_data.get('locations', []):
+            try:
+                # Timestamps ending in 'Z' need it replaced for fromisoformat
+                timestamp_str = loc.get('timestamp', '').replace('Z', '+00:00')
+                timestamp = datetime.fromisoformat(timestamp_str)
+                
+                if event_in_range(timestamp):
+                    lat = loc.get('latitudeE7') / 1e7
+                    lon = loc.get('longitudeE7') / 1e7
+                    events.append({'timestamp': timestamp, 'latitude': lat, 'longitude': lon})
+            except (ValueError, TypeError, KeyError):
+                continue
 
     return sorted(events, key=lambda x: x['timestamp'])
 
@@ -136,7 +152,7 @@ def main():
     """Main function to execute the timeline comparison script."""
     parser = argparse.ArgumentParser(
         description="Nexus Point: Compares timeline JSON files to find proximity events.",
-        epilog="Example: python3 nexus_point.py Aiden.json Kate.json --start-year 2022"
+        epilog="Example: python3 nexus_point.py Aiden.json Kate.json Hana.json --start-year 2023"
     )
     parser.add_argument("files", nargs='+', help="The list of JSON timeline files to process.")
     parser.add_argument("--time", type=int, default=2, help="Time threshold in MINUTES for a match (default: 2).")
