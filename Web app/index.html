@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PathSync: Timeline Proximity Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .file-label {
+            transition: all 0.2s ease-in-out;
+        }
+        .file-label:hover {
+            background-color: #4f46e5;
+        }
+        .spinner {
+            border-top-color: #4f46e5;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl bg-white rounded-2xl shadow-lg p-6 md:p-8 space-y-6">
+        
+        <!-- Header -->
+        <div class="text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">PathSync</h1>
+            <p class="text-gray-600 mt-2">Analyze Google Timeline files to find proximity events.</p>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- File Inputs -->
+            <div class="md:col-span-2 space-y-4" id="file-upload-container">
+                <h2 class="text-lg font-semibold text-gray-700">1. Upload Timeline Files</h2>
+                <div id="file-inputs">
+                    <!-- Dynamic file inputs will be added here -->
+                </div>
+                <button id="add-file-btn" class="w-full text-sm font-medium text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out">+ Add Another File</button>
+            </div>
+            
+            <!-- Thresholds -->
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold text-gray-700">2. Set Thresholds</h2>
+                <div>
+                    <label for="distance" class="block text-sm font-medium text-gray-700">Distance (meters)</label>
+                    <input type="number" id="distance" value="100" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                </div>
+                <div>
+                    <label for="time" class="block text-sm font-medium text-gray-700">Time (minutes)</label>
+                    <input type="number" id="time" value="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Button -->
+        <div class="text-center">
+            <button id="run-analysis" class="w-full md:w-auto bg-indigo-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:scale-100">
+                Run Analysis
+            </button>
+        </div>
+
+        <!-- Results Panel -->
+        <div id="results-container" class="space-y-4 pt-6 border-t border-gray-200 hidden">
+            <h2 class="text-2xl font-bold text-center text-gray-800">Analysis Results</h2>
+            <!-- Status and Summary -->
+            <div id="status" class="text-center text-gray-600 p-4 bg-gray-50 rounded-lg"></div>
+            <p id="summary" class="text-center font-medium"></p>
+            
+            <!-- Closest Match Card -->
+            <div id="closest-match-card" class="bg-indigo-50 border border-indigo-200 rounded-xl p-6 space-y-4 hidden">
+                <h3 class="text-xl font-semibold text-indigo-900">Closest Match Found</h3>
+                <div id="closest-match-details" class="space-y-3 text-sm">
+                    <!-- Details will be injected here -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const fileUploadContainer = document.getElementById('file-inputs');
+        const addFileBtn = document.getElementById('add-file-btn');
+        const runBtn = document.getElementById('run-analysis');
+        const resultsContainer = document.getElementById('results-container');
+        const statusEl = document.getElementById('status');
+        const summaryEl = document.getElementById('summary');
+        const closestMatchCard = document.getElementById('closest-match-card');
+        const closestMatchDetails = document.getElementById('closest-match-details');
+        
+        let fileInputCounter = 0;
+
+        function createFileInput() {
+            fileInputCounter++;
+            const inputId = `file-input-${fileInputCounter}`;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-center space-x-2';
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.id = inputId;
+            input.className = 'hidden';
+            input.dataset.id = fileInputCounter;
+
+            const label = document.createElement('label');
+            label.htmlFor = inputId;
+            label.className = 'file-label cursor-pointer bg-indigo-500 text-white text-sm font-medium py-2 px-4 rounded-md shadow-sm transition';
+            label.textContent = 'Choose File';
+
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.className = 'text-gray-500 text-sm truncate';
+            fileNameSpan.textContent = 'No file chosen...';
+
+            input.addEventListener('change', () => {
+                fileNameSpan.textContent = input.files.length > 0 ? input.files[0].name : 'No file chosen...';
+            });
+
+            wrapper.appendChild(input);
+            wrapper.appendChild(label);
+            wrapper.appendChild(fileNameSpan);
+            fileUploadContainer.appendChild(wrapper);
+        }
+        
+        // Initial file inputs
+        createFileInput();
+        createFileInput();
+
+        addFileBtn.addEventListener('click', createFileInput);
+
+        runBtn.addEventListener('click', async () => {
+            runBtn.disabled = true;
+            runBtn.innerHTML = `<div class="spinner w-5 h-5 border-4 rounded-full inline-block"></div> Analyzing...`;
+            
+            resultsContainer.classList.remove('hidden');
+            statusEl.textContent = 'Starting analysis...';
+            summaryEl.textContent = '';
+            closestMatchCard.classList.add('hidden');
+            
+            const files = Array.from(document.querySelectorAll('input[type="file"]'))
+                .filter(input => input.files.length > 0)
+                .map(input => input.files[0]);
+
+            if (files.length < 2) {
+                statusEl.textContent = 'Error: Please select at least two timeline files to compare.';
+                runBtn.disabled = false;
+                runBtn.textContent = 'Run Analysis';
+                return;
+            }
+
+            let processedData = {};
+            for (const file of files) {
+                statusEl.textContent = `Reading and parsing ${file.name}...`;
+                try {
+                    const content = await file.text();
+                    const jsonData = JSON.parse(content);
+                    const events = parseTimelineData(jsonData);
+                    if (events.length > 0) {
+                        processedData[file.name] = events;
+                    } else {
+                         statusEl.textContent += ` (Warning: No valid events found in ${file.name}).`;
+                    }
+                } catch (error) {
+                    statusEl.textContent = `Error processing ${file.name}: ${error.message}`;
+                    runBtn.disabled = false;
+                    runBtn.textContent = 'Run Analysis';
+                    return;
+                }
+            }
+            
+            statusEl.textContent = 'All files processed. Now comparing timelines...';
+
+            const fileKeys = Object.keys(processedData);
+            let totalMatches = 0;
+            let overallClosestMatch = null;
+            
+            // Generate combinations
+            for (let i = 0; i < fileKeys.length; i++) {
+                for (let j = i + 1; j < fileKeys.length; j++) {
+                    const file1 = fileKeys[i];
+                    const file2 = fileKeys[j];
+                    
+                    const data1 = processedData[file1];
+                    const data2 = processedData[file2];
+                    
+                    statusEl.textContent = `Comparing ${file1} and ${file2}...`;
+                    
+                    const distanceThresholdKm = parseFloat(document.getElementById('distance').value) / 1000;
+                    const timeThresholdMinutes = parseInt(document.getElementById('time').value);
+
+                    const matches = compareTimelines(data1, data2, timeThresholdMinutes, distanceThresholdKm);
+                    
+                    if (matches.length > 0) {
+                        totalMatches += matches.length;
+                        const closestInPair = findClosestMatch(matches);
+                        if (!overallClosestMatch || closestInPair.distance_km < overallClosestMatch.distance_km) {
+                            overallClosestMatch = closestInPair;
+                            overallClosestMatch.files = [file1, file2];
+                        }
+                    }
+                }
+            }
+
+            summaryEl.textContent = `Analysis complete. Found a total of ${totalMatches} matches across all files.`;
+            
+            if (overallClosestMatch) {
+                statusEl.textContent = 'Looking up location of closest match...';
+                try {
+                    const locationName = await getLocationName(overallClosestMatch.event1.latitude, overallClosestMatch.event1.longitude);
+                    displayClosestMatch(overallClosestMatch, locationName);
+                } catch (e) {
+                     statusEl.textContent = 'Could not fetch location details. Displaying results without address.';
+                     displayClosestMatch(overallClosestMatch, 'Location lookup failed.');
+                }
+            } else {
+                statusEl.textContent = 'No matches found within the specified thresholds.';
+            }
+
+            runBtn.disabled = false;
+            runBtn.textContent = 'Run Analysis';
+        });
+
+        function displayClosestMatch(match, locationName) {
+            closestMatchCard.classList.remove('hidden');
+            
+            const [file1, file2] = match.files;
+            const { event1, event2, distance_km, time_difference } = match;
+            
+            const event1UTC = moment.utc(event1.timestamp).format('YYYY-MM-DD HH:mm:ss');
+            const event2UTC = moment.utc(event2.timestamp).format('YYYY-MM-DD HH:mm:ss');
+
+            closestMatchDetails.innerHTML = `
+                <p><strong>Files:</strong> ${file1} & ${file2}</p>
+                <p><strong>Location:</strong> ${locationName}</p>
+                <p><strong>Distance:</strong> ${(distance_km * 1000).toFixed(2)} meters</p>
+                <p><strong>Time Difference:</strong> ${time_difference.toFixed(2)} seconds</p>
+                <div class="pt-2 mt-2 border-t">
+                    <p class="font-semibold text-indigo-800">${file1}:</p>
+                    <p class="pl-2">Lat: ${event1.latitude}, Lon: ${event1.longitude}</p>
+                    <p class="pl-2">Timestamp (UTC): ${event1UTC}</p>
+                </div>
+                <div class="pt-2 mt-2 border-t">
+                    <p class="font-semibold text-indigo-800">${file2}:</p>
+                    <p class="pl-2">Lat: ${event2.latitude}, Lon: ${event2.longitude}</p>
+                    <p class="pl-2">Timestamp (UTC): ${event2UTC}</p>
+                </div>
+            `;
+            statusEl.textContent = 'Closest match details displayed below.';
+        }
+
+        // --- Core Logic (JavaScript Translation) ---
+        
+        function parseTimelineData(jsonData) {
+            let events = [];
+            
+            // Handler for 'semanticSegments' format
+            if (jsonData.semanticSegments) {
+                jsonData.semanticSegments.forEach(segment => {
+                    if (segment.timelinePath) {
+                        segment.timelinePath.forEach(point => {
+                             if (point.point && typeof point.point === 'string') {
+                                const coords = point.point.match(/[-+]?\d+\.\d+/g);
+                                if (coords && coords.length === 2) {
+                                    events.push({
+                                        timestamp: new Date(point.time).getTime(),
+                                        latitude: parseFloat(coords[0]),
+                                        longitude: parseFloat(coords[1])
+                                    });
+                                }
+                            }
+                        });
+                    } else if (segment.visit) {
+                        const locationString = segment.visit?.topCandidate?.placeLocation;
+                        if (locationString && typeof locationString === 'string') {
+                            const coords = locationString.match(/[-+]?\d+\.\d+/g);
+                            if (coords && coords.length === 2) {
+                                 events.push({
+                                    timestamp: new Date(segment.startTime).getTime(),
+                                    latitude: parseFloat(coords[0]),
+                                    longitude: parseFloat(coords[1])
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+            // Handler for list format
+            else if (Array.isArray(jsonData)) {
+                jsonData.forEach(item => {
+                    const locationString = item.visit?.topCandidate?.placeLocation;
+                    if (locationString && typeof locationString === 'string') {
+                        const coords = locationString.match(/[-+]?\d+\.\d+/g);
+                        if (coords && coords.length === 2) {
+                             events.push({
+                                timestamp: new Date(item.startTime).getTime(),
+                                latitude: parseFloat(coords[0]),
+                                longitude: parseFloat(coords[1])
+                            });
+                        }
+                    }
+                });
+            }
+            // Handler for 'locations' with E7 format
+            else if (jsonData.locations) {
+                jsonData.locations.forEach(loc => {
+                    if (loc.latitudeE7 && loc.longitudeE7) {
+                        events.push({
+                            timestamp: new Date(loc.timestamp).getTime(),
+                            latitude: loc.latitudeE7 / 1e7,
+                            longitude: loc.longitudeE7 / 1e7
+                        });
+                    }
+                });
+            }
+
+            return events.sort((a, b) => a.timestamp - b.timestamp);
+        }
+
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const toRad = x => x * Math.PI / 180;
+            const R = 6371; // Earth radius in km
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function compareTimelines(data1, data2, timeThresholdMinutes, distanceThresholdKm) {
+            const matches = [];
+            const timeThresholdMs = timeThresholdMinutes * 60 * 1000;
+            let i = 0, j = 0;
+
+            while (i < data1.length && j < data2.length) {
+                const ts1 = data1[i].timestamp;
+                const ts2 = data2[j].timestamp;
+
+                const timeDifference = ts1 - ts2;
+                if (timeDifference > timeThresholdMs) { j++; continue; }
+                if (timeDifference < -timeThresholdMs) { i++; continue; }
+                
+                let k = j;
+                while (k < data2.length) {
+                    const ts2_sub = data2[k].timestamp;
+                    const subTimeDiff = Math.abs(ts1 - ts2_sub);
+                    if (subTimeDiff > timeThresholdMs) break;
+
+                    const distance = haversineDistance(data1[i].latitude, data1[i].longitude, data2[k].latitude, data2[k].longitude);
+                    if (distance <= distanceThresholdKm) {
+                        matches.push({
+                            event1: data1[i],
+                            event2: data2[k],
+                            time_difference: subTimeDiff / 1000, // in seconds
+                            distance_km: distance
+                        });
+                    }
+                    k++;
+                }
+                i++;
+            }
+            return matches;
+        }
+
+        function findClosestMatch(matches) {
+            if (!matches || matches.length === 0) return null;
+            return matches.reduce((closest, current) => current.distance_km < closest.distance_km ? current : closest, matches[0]);
+        }
+        
+        async function getLocationName(lat, lon) {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Nominatim API failed with status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data.display_name || "Unknown Location";
+            } catch (error) {
+                console.error("Geocoding error:", error);
+                return "Could not fetch location name.";
+            }
+        }
+    </script>
+</body>
+</html>
+
