@@ -1,3 +1,4 @@
+# PathSync
 PathSync: Timeline Proximity Analyzer
 PathSync is a powerful command-line tool designed to analyze and compare multiple Google Timeline JSON exports to discover "proximity events"—instances where individuals were at the same place at nearly the same time.
 
