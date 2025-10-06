@@ -28,12 +28,29 @@ It intelligently parses different Google Takeout formats, calculates distances, 
 
 ### Getting Your Data
 
-You can download your location history from [Google Takeout](https://takeout.google.com/).
+You can download your location history using one of two methods:
 
-1.  Visit the Google Takeout page and click "**Deselect all**."
-2.  Scroll down and select "**Location History**."
-3.  Ensure the format is set to **JSON**.
-4.  Proceed to create and download your export.
+### Method 1: Google Takeout (Recommended for Desktops)
+
+This method allows you to select and download your "Location History" data directly.
+
+1.  Visit the [Google Takeout](https://takeout.google.com/) website.
+2.  Click "**Deselect all**" to ensure you only download what you need.
+3.  Scroll down the list and check the box for "**Timeline**."
+4.  Ensure the format is set to **JSON**.
+5.  Click "**Next step**" and then "**Create export**." Google will prepare your files and notify you when they are ready to download.
+
+### Method 2: Google Maps App (for Mobile)
+
+You can start the export process from the Google Maps app on your phone, which will then guide you to Google Takeout.
+
+1.  Open the **Google Maps** app on your phone.
+2.  Tap on your **profile picture** in the top-right corner.
+3.  Select "**Your timeline**."
+4.  Tap the **three-dot menu (...)** in the top-right corner and select "**Settings and privacy**."
+5.  Scroll down to the "Location settings" section.
+6.  Tap "**Download a copy of your data**." This will take you to the Google Takeout page (as in Method 1) to finalize your export.
+
 
 ---
 
